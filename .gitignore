@@ -41,4 +41,6 @@ server/jiacrontab
 server/watchbin
 server/.data
 
+static
+
 

@@ -13,10 +13,10 @@ func (l *Logic) Register(args proto.ClientConf, reply *proto.MailArgs) error {
 	defer libs.MRecover()
 
 	*reply = proto.MailArgs{
-		Host: globalConfig.mailHost,
-		User: globalConfig.mailUser,
-		Pass: globalConfig.mailPass,
-		Port: globalConfig.mailPort,
+		Host: globalConfig.MailHost,
+		User: globalConfig.MailUser,
+		Pass: globalConfig.MailPass,
+		Port: globalConfig.MailPort,
 	}
 
 	globalStore.Wrap(func(s *store.Store) {

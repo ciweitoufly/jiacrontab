@@ -1,21 +1,20 @@
 package main
 
-import "net/http"
-import "runtime"
+import (
+	"net/http"
+	"jiacrontab/server/view"
+)
 
-func filterReq(rw http.ResponseWriter, r *http.Request, m *modelView) bool {
+
+func filterReq(rw http.ResponseWriter, r *http.Request, m *view.ModelView) bool {
 	if r.URL.Path == "/favicon.ico" {
 		return false
 	}
+	m.Locals("action", r.URL.Path)
 
-	m.locals["action"] = r.URL.Path
-	m.locals["appInfo"] = globalConfig.appName + " 当前版本:" + globalConfig.version
-	m.locals["goVersion"] = runtime.Version()
-	m.locals["appName"] = globalConfig.appName
-	m.locals["version"] = globalConfig.version
 
 	if err := globalReqFilter.filter(rw, r); err != nil {
-		m.renderHtml2([]string{"public/error"}, map[string]interface{}{
+		m.RenderHtml2([]string{"public/error"}, map[string]interface{}{
 			"error": err.Error(),
 		}, nil)
 		return false
@@ -24,7 +23,7 @@ func filterReq(rw http.ResponseWriter, r *http.Request, m *modelView) bool {
 	}
 }
 
-func omit(rw http.ResponseWriter, r *http.Request, m *modelView) bool {
+func omit(rw http.ResponseWriter, r *http.Request, m *view.ModelView) bool {
 	if r.URL.Path == "/favicon.ico" {
 		return false
 	} else {
@@ -32,14 +31,14 @@ func omit(rw http.ResponseWriter, r *http.Request, m *modelView) bool {
 	}
 }
 
-func checkLogin(rw http.ResponseWriter, r *http.Request, m *modelView) bool {
+func checkLogin(rw http.ResponseWriter, r *http.Request, m *view.ModelView) bool {
 
 	var userinfo map[string]interface{}
 	ok := globalJwt.auth(rw, r, &userinfo)
 	if ok {
 		for k, v := range userinfo {
-			m.shareData[k] = v
-			m.locals[k] = v
+			m.ShareData(k, v)
+			m.Locals(k, v)
 		}
 	}
 	if !ok && r.URL.Path == "/login" {

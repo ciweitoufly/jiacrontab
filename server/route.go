@@ -7,6 +7,7 @@ import (
 	"jiacrontab/libs"
 	"jiacrontab/libs/proto"
 	"jiacrontab/server/store"
+	"jiacrontab/server/view"
 	"log"
 	"net/http"
 	"sort"
@@ -15,7 +16,7 @@ import (
 	"time"
 )
 
-func listTask(rw http.ResponseWriter, r *http.Request, m *modelView) {
+func listTask(rw http.ResponseWriter, r *http.Request, m *view.ModelView) {
 
 	var addr string
 	var systemInfo map[string]interface{}
@@ -25,7 +26,7 @@ func listTask(rw http.ResponseWriter, r *http.Request, m *modelView) {
 
 	sortedTaskList := make([]*proto.TaskArgs, 0)
 	sortedClientList := make([]proto.ClientConf, 0)
-	clientList, _ = m.s.GetRPCClientList()
+	clientList, _ = m.S.GetRPCClientList()
 
 	if clientList != nil && len(clientList) > 0 {
 		for _, v := range clientList {
@@ -38,7 +39,7 @@ func listTask(rw http.ResponseWriter, r *http.Request, m *modelView) {
 		firstK := sortedClientList[0].Addr
 		addr = replaceEmpty(r.FormValue("addr"), firstK)
 	} else {
-		m.renderHtml2([]string{"public/error"}, map[string]interface{}{
+		m.RenderHtml2([]string{"public/error"}, map[string]interface{}{
 			"error": "nothing to show",
 		}, nil)
 		return
@@ -46,12 +47,12 @@ func listTask(rw http.ResponseWriter, r *http.Request, m *modelView) {
 
 	locals = make(proto.Mdata)
 
-	if err := m.rpcCall(addr, "Task.All", "", &locals); err != nil {
+	if err := m.RpcCall(addr, "Task.All", "", &locals); err != nil {
 		http.Redirect(rw, r, "/", http.StatusFound)
 		return
 	}
 
-	if err := m.rpcCall(addr, "Admin.SystemInfo", "", &systemInfo); err != nil {
+	if err := m.RpcCall(addr, "Admin.SystemInfo", "", &systemInfo); err != nil {
 		http.Redirect(rw, r, "/", http.StatusFound)
 		return
 	}
@@ -70,14 +71,14 @@ func listTask(rw http.ResponseWriter, r *http.Request, m *modelView) {
 			tpl = []string{"batchListTask"}
 		}
 	}
-	m.renderHtml2(tpl, map[string]interface{}{
+	m.RenderHtml2(tpl, map[string]interface{}{
 		"title":      "灵魂百度",
 		"list":       sortedTaskList,
 		"addrs":      sortedClientList,
 		"client":     clientList[addr],
 		"systemInfo": systemInfo,
 		"taskIds":    strings.Join(taskIdSli, ","),
-		"appName":    globalConfig.appName,
+		"appName":    globalConfig.AppName,
 		"url":        r.URL.String(),
 	}, template.FuncMap{
 		"date":     date,
@@ -86,18 +87,18 @@ func listTask(rw http.ResponseWriter, r *http.Request, m *modelView) {
 
 }
 
-func index(rw http.ResponseWriter, r *http.Request, m *modelView) {
+func index(rw http.ResponseWriter, r *http.Request, m *view.ModelView) {
 	var clientList map[string]proto.ClientConf
 	if r.URL.Path != "/" {
 		rw.WriteHeader(http.StatusNotFound)
-		m.renderHtml2([]string{"public/error"}, map[string]interface{}{
+		m.RenderHtml2([]string{"public/error"}, map[string]interface{}{
 			"error": "404 page not found",
 		}, nil)
 		return
 	}
 
 	sInfo := libs.SystemInfo(startTime)
-	clientList, _ = m.s.GetRPCClientList()
+	clientList, _ = m.S.GetRPCClientList()
 	sortedClientList := make([]proto.ClientConf, 0)
 
 	for _, v := range clientList {
@@ -107,7 +108,7 @@ func index(rw http.ResponseWriter, r *http.Request, m *modelView) {
 	sort.Slice(sortedClientList, func(i, j int) bool {
 		return (sortedClientList[i].Addr > sortedClientList[j].Addr) && (sortedClientList[i].State > sortedClientList[j].State)
 	})
-	m.renderHtml2([]string{"index"}, map[string]interface{}{
+	m.RenderHtml2([]string{"index"}, map[string]interface{}{
 		"clientList": sortedClientList,
 		"systemInfo": sInfo,
 	}, template.FuncMap{
@@ -116,14 +117,14 @@ func index(rw http.ResponseWriter, r *http.Request, m *modelView) {
 
 }
 
-func updateTask(rw http.ResponseWriter, r *http.Request, m *modelView) {
+func updateTask(rw http.ResponseWriter, r *http.Request, m *view.ModelView) {
 	var reply bool
 
 	sortedKeys := make([]string, 0)
 	addr := strings.TrimSpace(r.FormValue("addr"))
 	id := strings.TrimSpace(r.FormValue("taskId"))
 	if addr == "" {
-		m.renderHtml2([]string{"public/error"}, map[string]interface{}{
+		m.RenderHtml2([]string{"public/error"}, map[string]interface{}{
 			"error": "params error",
 		}, nil)
 		return
@@ -191,7 +192,7 @@ func updateTask(rw http.ResponseWriter, r *http.Request, m *modelView) {
 		hour := replaceEmpty(strings.TrimSpace(r.FormValue("hour")), "*")
 		minute := replaceEmpty(strings.TrimSpace(r.FormValue("minute")), "*")
 
-		if err := m.rpcCall(addr, "Task.Update", proto.TaskArgs{
+		if err := m.RpcCall(addr, "Task.Update", proto.TaskArgs{
 			Id:                 id,
 			Name:               n,
 			Command:            command,
@@ -219,7 +220,7 @@ func updateTask(rw http.ResponseWriter, r *http.Request, m *modelView) {
 				Weekday: weekday,
 			},
 		}, &reply); err != nil {
-			m.renderHtml2([]string{"public/error"}, map[string]interface{}{
+			m.RenderHtml2([]string{"public/error"}, map[string]interface{}{
 				"error": err.Error(),
 			}, nil)
 			return
@@ -234,20 +235,20 @@ func updateTask(rw http.ResponseWriter, r *http.Request, m *modelView) {
 		var clientList map[string]proto.ClientConf
 
 		if id != "" {
-			err := m.rpcCall(addr, "Task.Get", id, &t)
+			err := m.RpcCall(addr, "Task.Get", id, &t)
 			if err != nil {
 				http.Redirect(rw, r, "/list?addr="+addr, http.StatusFound)
 				return
 			}
 		} else {
-			client, _ := m.s.SearchRPCClientList(addr)
+			client, _ := m.S.SearchRPCClientList(addr)
 			t.MailTo = client.Mail
 		}
 		if t.MaxConcurrent == 0 {
 			t.MaxConcurrent = 1
 		}
 
-		clientList, _ = m.s.GetRPCClientList()
+		clientList, _ = m.S.GetRPCClientList()
 
 		if len(clientList) > 0 {
 			for k := range clientList {
@@ -257,30 +258,30 @@ func updateTask(rw http.ResponseWriter, r *http.Request, m *modelView) {
 			firstK := sortedKeys[0]
 			addr = replaceEmpty(r.FormValue("addr"), firstK)
 		} else {
-			m.renderHtml2([]string{"public/error"}, map[string]interface{}{
+			m.RenderHtml2([]string{"public/error"}, map[string]interface{}{
 				"error": "nothing to show",
 			}, nil)
 			return
 		}
 
-		m.renderHtml2([]string{"updateTask"}, map[string]interface{}{
+		m.RenderHtml2([]string{"updateTask"}, map[string]interface{}{
 			"addr":          addr,
 			"addrs":         sortedKeys,
 			"rpcClientsMap": clientList,
 			"task":          t,
-			"allowCommands": globalConfig.allowCommands,
+			"allowCommands": globalConfig.AllowCommands,
 		}, nil)
 	}
 
 }
 
-func stopTask(rw http.ResponseWriter, r *http.Request, m *modelView) {
+func stopTask(rw http.ResponseWriter, r *http.Request, m *view.ModelView) {
 	taskId := strings.TrimSpace(r.FormValue("taskId"))
 	addr := strings.TrimSpace(r.FormValue("addr"))
 	action := replaceEmpty(r.FormValue("action"), "stop")
 	var reply bool
 	if taskId == "" || addr == "" {
-		m.renderHtml2([]string{"public/error"}, map[string]interface{}{
+		m.RenderHtml2([]string{"public/error"}, map[string]interface{}{
 			"error": "param error",
 		}, nil)
 		return
@@ -300,8 +301,8 @@ func stopTask(rw http.ResponseWriter, r *http.Request, m *modelView) {
 	} else {
 		method = "Task.Kill"
 	}
-	if err := m.rpcCall(addr, method, taskId, &reply); err != nil {
-		m.renderHtml2([]string{"public/error"}, map[string]interface{}{
+	if err := m.RpcCall(addr, method, taskId, &reply); err != nil {
+		m.RenderHtml2([]string{"public/error"}, map[string]interface{}{
 			"error": err,
 		}, nil)
 		return
@@ -311,27 +312,27 @@ func stopTask(rw http.ResponseWriter, r *http.Request, m *modelView) {
 		return
 	}
 
-	m.renderHtml2([]string{"public/error"}, map[string]interface{}{
+	m.RenderHtml2([]string{"public/error"}, map[string]interface{}{
 		"error": fmt.Sprintf("failed %s %s", method, taskId),
 	}, nil)
 
 }
 
-func stopAllTask(rw http.ResponseWriter, r *http.Request, m *modelView) {
+func stopAllTask(rw http.ResponseWriter, r *http.Request, m *view.ModelView) {
 	taskIds := strings.TrimSpace(r.FormValue("taskIds"))
 	addr := strings.TrimSpace(r.FormValue("addr"))
 	method := "Task.StopAll"
 	taskIdSli := strings.Split(taskIds, ",")
 	var reply bool
 	if len(taskIdSli) == 0 || addr == "" {
-		m.renderHtml2([]string{"public/error"}, map[string]interface{}{
+		m.RenderHtml2([]string{"public/error"}, map[string]interface{}{
 			"error": "param error",
 		}, nil)
 		return
 	}
 
-	if err := m.rpcCall(addr, method, taskIdSli, &reply); err != nil {
-		m.renderHtml2([]string{"public/error"}, map[string]interface{}{
+	if err := m.RpcCall(addr, method, taskIdSli, &reply); err != nil {
+		m.RenderHtml2([]string{"public/error"}, map[string]interface{}{
 			"error": err,
 		}, nil)
 		return
@@ -341,25 +342,25 @@ func stopAllTask(rw http.ResponseWriter, r *http.Request, m *modelView) {
 		return
 	}
 
-	m.renderHtml2([]string{"public/error"}, map[string]interface{}{
+	m.RenderHtml2([]string{"public/error"}, map[string]interface{}{
 		"error": fmt.Sprintf("failed %s %v", method, taskIdSli),
 	}, nil)
 
 }
 
-func startTask(rw http.ResponseWriter, r *http.Request, m *modelView) {
+func startTask(rw http.ResponseWriter, r *http.Request, m *view.ModelView) {
 	taskId := strings.TrimSpace(r.FormValue("taskId"))
 	addr := strings.TrimSpace(r.FormValue("addr"))
 	var reply bool
 	if taskId == "" || addr == "" {
-		m.renderHtml2([]string{"public/error"}, map[string]interface{}{
+		m.RenderHtml2([]string{"public/error"}, map[string]interface{}{
 			"error": "param error",
 		}, nil)
 		return
 	}
 
-	if err := m.rpcCall(addr, "Task.Start", taskId, &reply); err != nil {
-		m.renderHtml2([]string{"public/error"}, map[string]interface{}{
+	if err := m.RpcCall(addr, "Task.Start", taskId, &reply); err != nil {
+		m.RenderHtml2([]string{"public/error"}, map[string]interface{}{
 			"error": "param error",
 		}, nil)
 		return
@@ -370,20 +371,20 @@ func startTask(rw http.ResponseWriter, r *http.Request, m *modelView) {
 		return
 	}
 
-	m.renderHtml2([]string{"public/error"}, map[string]interface{}{
+	m.RenderHtml2([]string{"public/error"}, map[string]interface{}{
 		"error": "failed start task" + taskId,
 	}, nil)
 
 }
 
-func login(rw http.ResponseWriter, r *http.Request, m *modelView) {
+func login(rw http.ResponseWriter, r *http.Request, m *view.ModelView) {
 	if r.Method == http.MethodPost {
 
 		u := r.FormValue("username")
 		pwd := r.FormValue("passwd")
 		remb := r.FormValue("remember")
 
-		if u == globalConfig.user && pwd == globalConfig.passwd {
+		if u == globalConfig.User && pwd == globalConfig.Passwd {
 			md5p := fmt.Sprintf("%x", md5.Sum([]byte(pwd)))
 			if remb == "yes" {
 				globalJwt.accessToken(rw, r, u, md5p)
@@ -395,7 +396,7 @@ func login(rw http.ResponseWriter, r *http.Request, m *modelView) {
 			return
 		}
 
-		m.renderHtml2([]string{"public/error"}, map[string]interface{}{
+		m.RenderHtml2([]string{"public/error"}, map[string]interface{}{
 			"error": "auth failed",
 		}, nil)
 
@@ -405,60 +406,60 @@ func login(rw http.ResponseWriter, r *http.Request, m *modelView) {
 			http.Redirect(rw, r, "/", http.StatusFound)
 			return
 		}
-		m.renderHtml2([]string{"login"}, nil, nil)
+		m.RenderHtml2([]string{"login"}, nil, nil)
 
 	}
 }
 
-func quickStart(rw http.ResponseWriter, r *http.Request, m *modelView) {
+func quickStart(rw http.ResponseWriter, r *http.Request, m *view.ModelView) {
 	taskId := strings.TrimSpace(r.FormValue("taskId"))
 	addr := strings.TrimSpace(r.FormValue("addr"))
 	var reply []byte
 	if taskId == "" || addr == "" {
-		m.renderHtml2([]string{"public/error"}, map[string]interface{}{
+		m.RenderHtml2([]string{"public/error"}, map[string]interface{}{
 			"error": "param error",
 		}, nil)
 		return
 	}
 
-	if err := m.rpcCall(addr, "Task.QuickStart", taskId, &reply); err != nil {
-		m.renderHtml2([]string{"public/error"}, map[string]interface{}{
+	if err := m.RpcCall(addr, "Task.QuickStart", taskId, &reply); err != nil {
+		m.RenderHtml2([]string{"public/error"}, map[string]interface{}{
 			"error": err,
 		}, nil)
 		return
 	}
 	logList := strings.Split(string(reply), "\n")
-	m.renderHtml2([]string{"log"}, map[string]interface{}{
+	m.RenderHtml2([]string{"log"}, map[string]interface{}{
 		"logList": logList,
 		"addr":    addr,
 	}, nil)
 
 }
 
-func logout(rw http.ResponseWriter, r *http.Request, m *modelView) {
+func logout(rw http.ResponseWriter, r *http.Request, m *view.ModelView) {
 	globalJwt.cleanCookie(rw)
 	http.Redirect(rw, r, "/login", http.StatusFound)
 }
 
-func recentLog(rw http.ResponseWriter, r *http.Request, m *modelView) {
+func recentLog(rw http.ResponseWriter, r *http.Request, m *view.ModelView) {
 	id := r.FormValue("taskId")
 	addr := r.FormValue("addr")
 	var content []byte
 	if id == "" {
-		m.renderHtml2([]string{"public/error"}, map[string]interface{}{
+		m.RenderHtml2([]string{"public/error"}, map[string]interface{}{
 			"error": "param error",
 		}, nil)
 		return
 	}
-	if err := m.rpcCall(addr, "Task.Log", id, &content); err != nil {
-		m.renderHtml2([]string{"public/error"}, map[string]interface{}{
+	if err := m.RpcCall(addr, "Task.Log", id, &content); err != nil {
+		m.RenderHtml2([]string{"public/error"}, map[string]interface{}{
 			"error": err,
 		}, nil)
 		return
 	}
 	logList := strings.Split(string(content), "\n")
 
-	m.renderHtml2([]string{"log"}, map[string]interface{}{
+	m.RenderHtml2([]string{"log"}, map[string]interface{}{
 		"logList": logList,
 		"addr":    addr,
 	}, nil)
@@ -466,23 +467,23 @@ func recentLog(rw http.ResponseWriter, r *http.Request, m *modelView) {
 
 }
 
-func readme(rw http.ResponseWriter, r *http.Request, m *modelView) {
+func readme(rw http.ResponseWriter, r *http.Request, m *view.ModelView) {
 
-	m.renderHtml2([]string{"readme"}, map[string]interface{}{}, nil)
+	m.RenderHtml2([]string{"readme"}, map[string]interface{}{}, nil)
 	return
 
 }
 
-func reloadConfig(rw http.ResponseWriter, r *http.Request, m *modelView) {
-	globalConfig.reload()
+func reloadConfig(rw http.ResponseWriter, r *http.Request, m *view.ModelView) {
+	globalConfig.Reload()
 	http.Redirect(rw, r, "/", http.StatusFound)
 	log.Println("reload config")
 }
 
-func deleteClient(rw http.ResponseWriter, r *http.Request, m *modelView) {
+func deleteClient(rw http.ResponseWriter, r *http.Request, m *view.ModelView) {
 
 	addr := r.FormValue("addr")
-	m.s.Wrap(func(s *store.Store) {
+	m.S.Wrap(func(s *store.Store) {
 
 		if v, ok := s.RpcClientList[addr]; ok {
 			if v.State == 1 {
@@ -495,22 +496,22 @@ func deleteClient(rw http.ResponseWriter, r *http.Request, m *modelView) {
 	http.Redirect(rw, r, "/", http.StatusFound)
 }
 
-func viewConfig(rw http.ResponseWriter, r *http.Request, m *modelView) {
+func viewConfig(rw http.ResponseWriter, r *http.Request, m *view.ModelView) {
 
-	c := globalConfig.category()
+	c := globalConfig.Category()
 
 	if r.Method == http.MethodPost {
 		mailTo := strings.TrimSpace(r.FormValue("mailTo"))
-		libs.SendMail("测试邮件", "测试邮件请勿回复", globalConfig.mailHost, globalConfig.mailUser, globalConfig.mailPass, globalConfig.mailPort, mailTo)
+		libs.SendMail("测试邮件", "测试邮件请勿回复", globalConfig.MailHost, globalConfig.MailUser, globalConfig.MailPass, globalConfig.MailPort, mailTo)
 	}
 
-	m.renderHtml2([]string{"viewConfig"}, map[string]interface{}{
+	m.RenderHtml2([]string{"viewConfig"}, map[string]interface{}{
 		"configs": c,
 	}, nil)
 	return
 }
 
-func model(rw http.ResponseWriter, r *http.Request, m *modelView) {
+func model(rw http.ResponseWriter, r *http.Request, m *view.ModelView) {
 	val := r.FormValue("type")
 	url := r.FormValue("url")
 	http.SetCookie(rw, &http.Cookie{

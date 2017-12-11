@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"jiacrontab/server/view"
 	"log"
 	"net/http"
 	"net/http/pprof"
@@ -10,38 +11,32 @@ import (
 	"time"
 )
 
-type beforeReqHandle func(rw http.ResponseWriter, r *http.Request, m *modelView) bool
+type beforeReqHandle func(rw http.ResponseWriter, r *http.Request, m *view.ModelView) bool
 
-type ResponseData struct {
-	Code int
-	Msg  string
-	Data interface{}
-}
-
-func wrapHandler(fn func(rw http.ResponseWriter, r *http.Request, m *modelView), b []beforeReqHandle) http.HandlerFunc {
+func wrapHandler(fn func(rw http.ResponseWriter, r *http.Request, m *view.ModelView), b []beforeReqHandle) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		startNa := float64(time.Now().UnixNano())
 		startMs := startNa / 1000000
 
-		modelV := newModelView(rw, globalStore)
-		modelV.startTime = startNa
+		modelV := view.NewModelView(rw, globalStore, globalConfig)
+		modelV.StartTime = startNa
 
 		defer func() {
 			k := fmt.Sprintf("%s|%s", getHttpClientIp(r), r.Header.Get("User-Agent"))
 			endMs := float64(time.Now().UnixNano()) / 1000000
 			log.Printf("%s %s %s %s %fms", k, r.Method, r.URL.Path, r.URL.RawQuery, endMs-startMs)
 			if e, ok := recover().(error); ok {
-				if globalConfig.debug == true {
+				if globalConfig.Debug == true {
 					_, f, l, ok := runtime.Caller(0)
 
 					errStr := fmt.Sprintf("%s %d %t %s\n%s", f, l, ok, e.Error(), string(debug.Stack()))
 					// http.Error(rw, errStr, http.StatusInternalServerError)
-					modelV.renderHtml2([]string{"public/error"}, map[string]interface{}{
+					modelV.RenderHtml2([]string{"public/error"}, map[string]interface{}{
 						"error": errStr,
 					}, nil)
 				} else {
 					// http.Error(rw, e.Error(), http.StatusInternalServerError)
-					modelV.renderHtml2([]string{"public/error"}, map[string]interface{}{
+					modelV.RenderHtml2([]string{"public/error"}, map[string]interface{}{
 						"error": e.Error(),
 					}, nil)
 				}
@@ -78,7 +73,7 @@ func initServer() {
 	mux.HandleFunc("/stopAllTask", wrapHandler(stopAllTask, []beforeReqHandle{filterReq, checkLogin}))
 	mux.HandleFunc("/model", wrapHandler(model, []beforeReqHandle{filterReq, checkLogin}))
 
-	if globalConfig.debug {
+	if globalConfig.Debug {
 		mux.HandleFunc("/debug/pprof/", pprof.Index)
 		mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
 		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
@@ -87,6 +82,6 @@ func initServer() {
 
 	mux.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("static"))))
 
-	log.Println("listen to ", globalConfig.addr)
-	log.Fatal(http.ListenAndServe(globalConfig.addr, mux))
+	log.Println("listen to ", globalConfig.Addr)
+	log.Fatal(http.ListenAndServe(globalConfig.Addr, mux))
 }
