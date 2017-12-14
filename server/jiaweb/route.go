@@ -1,6 +1,8 @@
 package jiaweb
 
 import (
+	"log"
+	"net/http"
 	"sync"
 )
 
@@ -18,7 +20,6 @@ const (
 )
 
 type (
-	HttpHandle func(httpCtx *HttpContext)
 	Middleware func(httpCtx *HttpContext)
 	Router     interface {
 		ServeHttp(ctx *HttpContext)
@@ -75,12 +76,111 @@ func (r *route) ServeHTTP(ctx *HttpContext) {
 	rw := ctx.Response().ResponseWriter
 	path := req.URL.Path
 	if root := r.NodeMap[req.Method]; root != nil {
-		node, params, _ := root.getNode(path)
-		if node.hander != nil {
+		if handler, params := root.GetValue(path); handler != nil {
+			handler(ctx)
+			ctx.params = params
+		} else if req.Method != "CONNECT" && path != "/" {
+			code := 301
+			if req.Method != "GET" {
+				code = 307
+			}
 
+			if r.RedirectTrailingSlash {
+				if len(path) > 1 && path[len(path)-1] == '/' {
+					req.URL.Path = path[:len(path)-1]
+				} else {
+					req.URL.Path = path + "/"
+				}
+				http.Redirect(rw, req, req.URL.String(), code)
+				return
+			}
+
+			if r.RedirectFixedPath {
+				// TODO 自动补全斜线
+			}
+
+		}
+
+	}
+
+	if req.Method == "OPTIONS" {
+		if r.HandleOPTIONS {
+			if allow := r.allowed(path, req.Method); len(allow) > 0 {
+				rw.Header().Set("Allow", allow)
+				return
+			}
+		}
+	} else {
+		// 405
+		if allow := r.allowed(path, req.Method); len(allow) > 0 {
+			rw.Header().Set("Allow", allow)
+			rw.WriteHeader(http.StatusMethodNotAllowed)
+			// TODO 设置禁止访问handle
 		}
 	}
 
+	// Handle 404
+	ctx.Response().WriteHeader(http.StatusNotFound)
+
+	// TODO 404 handle
+
+}
+
+func (r *route) allowed(path, reqMethod string) (allow string) {
+	if path == "*" {
+		for method := range r.NodeMap {
+			if method == "OPTIONS" {
+				continue
+			}
+
+			if len(allow) == 0 {
+				allow = method
+			} else {
+				allow += ", " + method
+			}
+		}
+	} else {
+		for method := range r.NodeMap {
+			if method == reqMethod || method == "OPTIONS" {
+				continue
+			}
+			h, _ := r.NodeMap[method].GetValue(path)
+			if h != nil {
+				if len(allow) == 0 {
+					allow = method
+				} else {
+					allow += ", " + method
+				}
+			}
+		}
+	}
+
+	if len(allow) > 0 {
+		allow += ", OPTIONS"
+	}
+	return
+}
+
+func (r *route) wrapRouteHandle(handler HttpHandle, isHijack bool) handle {
+	return func(ctx *HttpContext) {
+		ctx.handler = handler
+
+		// TODO do feature
+
+		if isHijack {
+			// TODO Hijack
+		}
+
+		defer func() {
+			if err := recover(); err != nil {
+				log.Println(err)
+			}
+
+		}()
+
+		// do user handle
+
+	}
 }
 
 func init() {

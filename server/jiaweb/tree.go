@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/iwannay/jiaweb/utils"
+	"jiacrontab/server/jiaweb/utils"
 )
 
 const (
@@ -24,8 +24,8 @@ type (
 	Node struct {
 		Path       string
 		NodeType   int
-		hander     HandlerFunc
-		middleware []MiddlewareIf
+		hander     RouteHandle
+		middleware []Middleware
 		Children   []*Node
 		Params     Params
 		reg        *regexp.Regexp
@@ -46,7 +46,7 @@ func NewTree() *Node {
 }
 
 // Use 添加中间件
-func (n *Node) Use(m ...MiddlewareIf) *Node {
+func (n *Node) Use(m ...Middleware) *Node {
 	if len(m) < 0 {
 		return n
 	}
@@ -59,7 +59,7 @@ func (n *Node) Use(m ...MiddlewareIf) *Node {
 
 }
 
-func (n *Node) insertChild(path string, handler HandlerFunc) {
+func (n *Node) insertChild(path string, handler RouteHandle) {
 
 	// fullpath := path
 	var paramsCheck uint8
@@ -313,8 +313,10 @@ func (n *Node) getNode(path string) (node *Node, paramsValue map[string]string, 
 
 }
 
-func (n *Node) GetNode(path string) (node *Node, paramsValue map[string]string, fullPath string) {
-	return n.getNode(path)
+func (n *Node) GetValue(path string) (handle RouteHandle, paramsValue map[string]string) {
+	node, params, _ := n.getNode(path)
+
+	return node.hander, params
 }
 
 func (n *Node) Middleware() []MiddlewareIf {

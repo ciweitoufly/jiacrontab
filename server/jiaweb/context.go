@@ -7,6 +7,8 @@ type (
 		request    *Request
 		response   *Response
 		httpServer *HttpServer
+		handler    HttpHandle
+		params     map[string]string
 	}
 )
 
