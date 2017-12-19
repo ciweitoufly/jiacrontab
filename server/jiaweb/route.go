@@ -20,8 +20,8 @@ const (
 )
 
 type (
-	Middleware func(httpCtx *HttpContext)
-	Router     interface {
+	// Middleware func(httpCtx *HttpContext)
+	Router interface {
 		ServeHttp(ctx *HttpContext)
 		ServeFile(path, fileRoot string)
 	}
@@ -37,6 +37,7 @@ type (
 		NodeMap               map[string]*Node
 		rwMutex               sync.RWMutex
 		RedirectTrailingSlash bool
+		server                *HttpServer
 		RedirectFixedPath     bool
 		HandleOPTIONS         bool
 	}
@@ -48,13 +49,14 @@ var (
 	SupportHTTPMethod map[string]bool
 )
 
-func NewRoute() *route {
+func NewRoute(server *HttpServer) *route {
 	return &route{
 		handleMap:             make(map[string]HttpHandle),
 		NodeMap:               make(map[string]*Node),
 		RedirectTrailingSlash: true,
 		RedirectFixedPath:     true,
 		HandleOPTIONS:         true,
+		server:                server,
 	}
 }
 
@@ -73,12 +75,13 @@ func (r *route) GetHandler(name string) (HttpHandle, bool) {
 
 func (r *route) ServeHTTP(ctx *HttpContext) {
 	req := ctx.Request().Request
-	rw := ctx.Response().ResponseWriter
+	rw := ctx.Response().ResponseWriter()
 	path := req.URL.Path
 	if root := r.NodeMap[req.Method]; root != nil {
 		if handler, params := root.GetValue(path); handler != nil {
 			handler(ctx)
 			ctx.params = params
+			// ctx.RouteNode =
 		} else if req.Method != "CONNECT" && path != "/" {
 			code := 301
 			if req.Method != "GET" {
@@ -113,9 +116,12 @@ func (r *route) ServeHTTP(ctx *HttpContext) {
 	} else {
 		// 405
 		if allow := r.allowed(path, req.Method); len(allow) > 0 {
-			rw.Header().Set("Allow", allow)
-			rw.WriteHeader(http.StatusMethodNotAllowed)
+
+			ctx.Response().SetHeader("Allow", allow)
+			ctx.Response().SetStatusCode(http.StatusMethodNotAllowed)
+
 			// TODO 设置禁止访问handle
+
 		}
 	}
 
@@ -161,7 +167,7 @@ func (r *route) allowed(path, reqMethod string) (allow string) {
 	return
 }
 
-func (r *route) wrapRouteHandle(handler HttpHandle, isHijack bool) handle {
+func (r *route) wrapRouteHandle(handler HttpHandle, isHijack bool) RouteHandle {
 	return func(ctx *HttpContext) {
 		ctx.handler = handler
 
@@ -180,6 +186,15 @@ func (r *route) wrapRouteHandle(handler HttpHandle, isHijack bool) handle {
 
 		// do user handle
 
+	}
+}
+
+func (r *route) ServerFile(path string, fileroot string) RouteNode {
+	node := &Node{}
+	var root http.FileSystem
+	root = http.Dir(fileroot)
+	if !r.server.ServerConfig().EnableListDir {
+		// root =
 	}
 }
 

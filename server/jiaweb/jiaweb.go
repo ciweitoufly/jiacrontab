@@ -1,16 +1,20 @@
 package jiaweb
 
 import (
+	"jiacrontab/server/jiaweb/config"
 	"jiacrontab/server/jiaweb/logger"
+	"sync"
 )
 
 type (
 	JiaWeb struct {
 		HttpServer              *HttpServer
+		Config                  *config.Config
 		Middlewares             []Middleware
 		ExceptionHandler        ExceptionHandle
 		NotFoundHandler         StandardHandle
 		MethodNotAllowedHandler StandardHandle
+		Mutex                   sync.RWMutex
 	}
 
 	// 自定义异常处理
@@ -29,9 +33,10 @@ const (
 func New() *JiaWeb {
 	app := &JiaWeb{
 		HttpServer:  NewHttpServer(),
+		Config:      config.New(),
 		Middlewares: make([]Middleware, 0),
 	}
-
+	// app.HttpServer
 	logger.InitJiaLog()
 
 	return app
@@ -39,6 +44,10 @@ func New() *JiaWeb {
 
 func Classic() *JiaWeb {
 	app := New()
+
+	app.SetEnableLog(true)
+
+	return app
 
 }
 
@@ -50,3 +59,5 @@ func (app *JiaWeb) SetEnableLog(enableLog bool) {
 func (app *JiaWeb) SetLogPath(path string) {
 	logger.SetLogPath(path)
 }
+
+// func (app *JiaWeb) RegisterMiddlewareFunc(name string,)

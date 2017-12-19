@@ -42,3 +42,7 @@ func (req *Request) Body() []byte {
 func (req *Request) RemoteIP() string {
 	return req.Request.RemoteAddr
 }
+
+func (req *Request) Url() string {
+	return req.URL.String()
+}

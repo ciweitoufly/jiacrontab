@@ -4,12 +4,16 @@ import (
 	"jiacrontab/server/view"
 	"net/http"
 	"sync"
+
+	"jiacrontab/server/jiaweb/config"
 )
 
 type (
 	HttpServer struct {
 		stdServer *http.Server
 		pool      *pool
+		route     Router
+		JiaWeb    *JiaWeb
 		modelView *view.ModelView
 		end       bool
 	}
@@ -48,6 +52,7 @@ func NewHttpServer() *HttpServer {
 	s.stdServer = &http.Server{
 		Handler: s,
 	}
+	s.route = NewRoute(s)
 
 	return s
 }
@@ -66,4 +71,16 @@ func (s *HttpServer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	request.reset(req, httpctx)
 	response.reset(rw)
 
+}
+
+func (s *HttpServer) SetJiaWeb(jiaweb *JiaWeb) {
+	s.JiaWeb = jiaweb
+}
+
+func (s *HttpServer) Route() Router {
+	return s.route
+}
+
+func (s *HttpServer) ServerConfig() *config.ServerNode {
+	return s.JiaWeb.Config.Server
 }

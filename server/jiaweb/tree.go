@@ -50,9 +50,16 @@ func (n *Node) Use(m ...Middleware) *Node {
 	if len(m) < 0 {
 		return n
 	}
+
+	step := len(n.middleware) - 1
+
 	for _, v := range m {
 		if v != nil {
+			if step >= 0 {
+				n.middleware[step].SetNext(v)
+			}
 			n.middleware = append(n.middleware, v)
+			step++
 		}
 	}
 	return n
@@ -203,6 +210,10 @@ walk:
 
 }
 
+func (n *Node) Node() *Node {
+	return n
+}
+
 func (n *Node) getNode(path string) (node *Node, paramsValue map[string]string, fullPath string) {
 	var i, maxLength int
 	paramsValue = make(map[string]string)
@@ -319,7 +330,7 @@ func (n *Node) GetValue(path string) (handle RouteHandle, paramsValue map[string
 	return node.hander, params
 }
 
-func (n *Node) Middleware() []MiddlewareIf {
+func (n *Node) Middleware() []Middleware {
 	return n.middleware
 }
 
